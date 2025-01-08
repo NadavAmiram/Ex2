@@ -1,57 +1,69 @@
-Spreadsheet Simulation
-This project implements a simple spreadsheet system in Java, supporting text, numbers, and formulas. It provides functionality to create a table of cells, evaluate formulas, and load/save the sheet to/from a file. The spreadsheet also calculates dependency depths to handle cell evaluations in the correct order, taking into account references to other cells.
+# Ex2Sheet - Spreadsheet Implementation
 
-Files
-1. Ex2Sheet.java
-This file contains the implementation of the Ex2Sheet class, which represents the spreadsheet itself. It includes methods for:
+## Overview
+`Ex2Sheet` is a Java implementation of a spreadsheet with support for text, numbers, and formulas. It provides basic functionality for:
+- Storing and evaluating cells.
+- Handling different data types (text, numbers, formulas).
+- Saving and loading spreadsheets to/from a file.
 
-Creating and initializing a new spreadsheet with default or specified dimensions.
-Storing cell data and evaluating it based on dependencies.
-Handling various cell types (text, number, formula).
-Saving and loading the spreadsheet from a file.
-Key Methods:
+## Features
+- **Cell Evaluation:** Handles the evaluation of text, numbers, and formulas.
+- **Dependencies:** Supports cell dependencies and ensures there are no circular references.
+- **File I/O:** Allows loading and saving spreadsheets in a text-based format.
+- **Spreadsheet Dimensions:** Supports custom width and height for spreadsheets.
 
-value(int x, int y): Returns the evaluated value of a cell.
-set(int col, int row, String val): Sets the value of a cell.
-eval(): Evaluates all cells based on dependencies.
-depth(): Calculates the dependency depth of each cell.
-save(String fileName): Saves the spreadsheet to a file.
-load(String fileName): Loads a spreadsheet from a file.
-2. CellEntry.java
-This file contains the CellEntry class, which represents a cell’s coordinates and provides conversion between spreadsheet notation (e.g., "A0") and array indices.
+## Classes
+- **Ex2Sheet:** The main class representing the spreadsheet.
+- **SCell:** Represents a single cell in the spreadsheet (text, number, or formula).
+- **CellEntry:** Represents a cell's coordinates and provides conversion between spreadsheet notation (e.g., "A0") and array indices.
+- **Sheet:** Interface defining the methods for a spreadsheet.
 
-Key Methods:
+## Methods
 
-toString(): Converts the coordinates to a string representation (e.g., "A0").
-isValid(): Checks if the coordinates are valid.
-getX() and getY(): Return the column and row indices, respectively.
-Dependencies
-Java 8 or higher: The project uses features introduced in Java 8 (such as lambda expressions and streams).
-Usage
-Create a new spreadsheet:
+### `Ex2Sheet(int x, int y)`
+Constructor that initializes the spreadsheet with the specified dimensions (width `x` and height `y`).
 
-java
-Copy code
-Ex2Sheet sheet = new Ex2Sheet(10, 10); // creates a 10x10 sheet
-Set cell values:
+### `Ex2Sheet()`
+Constructor that initializes the spreadsheet with default dimensions.
 
-java
-Copy code
-sheet.set(0, 0, "5");
-sheet.set(1, 0, "=A0+3");
-Get evaluated value:
+### `void set(int col, int row, String val)`
+Sets the value of the cell at the given column (`col`) and row (`row`).
 
-java
-Copy code
-String result = sheet.value(1, 0); // Retrieves the evaluated value of cell B0
-Save and load from file:
+### `String value(int x, int y)`
+Returns the evaluated value of the cell at the specified coordinates (`x`, `y`).
 
-java
-Copy code
-sheet.save("sheet.txt");
-sheet.load("sheet.txt");
-Example
-For a spreadsheet with 3 rows and 3 columns:
+### `Cell get(int x, int y)`
+Returns the cell at the specified coordinates (`x`, `y`).
 
-Set A0 = 5, B0 = "=A0+3", and C0 = "=B0*2".
-The cell C0 will contain 16 after evaluation.
+### `int width()`
+Returns the width (number of columns) of the spreadsheet.
+
+### `int height()`
+Returns the height (number of rows) of the spreadsheet.
+
+### `void eval()`
+Evaluates all cells in the spreadsheet based on their dependencies.
+
+### `boolean isIn(int xx, int yy)`
+Checks if the specified coordinates are within the bounds of the spreadsheet.
+
+### `int[][] depth()`
+Calculates the dependency depths for all cells in the spreadsheet.
+
+### `String eval(int x, int y)`
+Evaluates a specific cell and returns its value.
+
+### `void save(String fileName) throws IOException`
+Saves the spreadsheet to a file with the given filename.
+
+### `void load(String fileName) throws IOException`
+Loads the spreadsheet from a file with the given filename.
+
+### `private int[] parseCoordinates(String cords)`
+Parses cell coordinates from string format (e.g., "A0") and returns the corresponding column and row indices.
+
+### Picture of the project 
+
+
+![image](https://github.com/user-attachments/assets/3a6d39b6-7694-4b60-9897-fa471e56514f)
+
