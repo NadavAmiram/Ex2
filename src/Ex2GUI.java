@@ -13,7 +13,7 @@ import java.io.IOException;
  * @author boaz.benmoshe
  *
  */
-public class Ex2GUI {
+public class     Ex2GUI {
 
 	private static Sheet table; // this is the main data (an implementation of the Sheet interface).
 	private static Index2D cord = null; // a table entry used by the GUI of setting up a cell value / form
