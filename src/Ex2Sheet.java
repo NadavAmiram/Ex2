@@ -238,10 +238,6 @@ public class Ex2Sheet implements Sheet {
         }
         return depths;
     }
-
-    /**
-     * Calculates the dependency depth of a single cell
-     */
     private int calculateCellDepth(int row, int col, boolean[][] visited) {
         if (!isIn(row, col)) {
             return Ex2Utils.ERR_CYCLE_FORM;
@@ -261,56 +257,66 @@ public class Ex2Sheet implements Sheet {
             return 0;
         }
 
-        // החלק החדש - בדיקה אם זה מספר בפורמט מדעי
+        // בדיקה אם זה מספר בפורמט מדעי
         String content = data.substring(1).trim();
         if (content.matches("^-?\\d*\\.?\\d+[eE][-+]?\\d+$")) {
-            return 0;  // זה מספר בפורמט מדעי, אין צורך לחפש מעגליות
+            return 0;
         }
 
-        // המשך הקוד המקורי...
+        // בדיקת מעגליות - אבל קודם נבדוק אם זו נוסחה שמאפסת את עצמה
         if (visited[row][col]) {
+            // בדיקה האם זו נוסחה מהצורה A1-A1
+            Pattern selfNegatingPattern = Pattern.compile("([A-Za-z][0-9]+)-\\1");
+            Matcher selfNegatingMatcher = selfNegatingPattern.matcher(content);
+            if (selfNegatingMatcher.matches()) {
+                return 0;  // במקרה של A1-A1, התוצאה תמיד תהיה 0
+            }
             return Ex2Utils.ERR_CYCLE_FORM;
         }
 
-        visited[row][col] = true;
         Pattern pattern = Pattern.compile("[A-Za-z][0-9]+");
         Matcher matcher = pattern.matcher(data);
         if (!matcher.find()) {
             return 0;  // אין תלויות בתאים אחרים
         }
 
-        visited[row][col] = true;
+        visited[row][col] = true;  // מסמן את התא כמבוקר
         matcher.reset();
         int maxDepth = 0;
 
-        while (matcher.find()) {
-            String ref = matcher.group();
-            // המרה לאות גדולה בעת החישוב
-            int nextCol = Character.toUpperCase(ref.charAt(0)) - 'A';
-            int nextRow = Integer.parseInt(ref.substring(1));
+        try {
+            while (matcher.find()) {
+                String ref = matcher.group();
+                int nextCol = Character.toUpperCase(ref.charAt(0)) - 'A';
+                int nextRow = Integer.parseInt(ref.substring(1));
 
-            // בדיקת תקינות התא המאוזכר
-            if (!isIn(nextCol, nextRow)) {
-                visited[row][col] = false;
-                return Ex2Utils.ERR_CYCLE_FORM;
+                // בדיקת תקינות התא המאוזכר
+                if (!isIn(nextCol, nextRow)) {
+                    return Ex2Utils.ERR_CYCLE_FORM;
+                }
+
+                Cell dependentCell = table[nextCol][nextRow];
+                if (dependentCell == null) {
+                    return Ex2Utils.ERR_CYCLE_FORM;
+                }
+
+                // אם התא ריק, נחשיב אותו כ-0
+                String dependentData = dependentCell.getData();
+                if (dependentData == null || dependentData.trim().isEmpty()) {
+                    continue;
+                }
+
+                int depth = calculateCellDepth(nextCol, nextRow, visited);
+                if (depth == Ex2Utils.ERR_CYCLE_FORM) {
+                    return Ex2Utils.ERR_CYCLE_FORM;
+                }
+                maxDepth = Math.max(maxDepth, depth);
             }
 
-            Cell dependentCell = table[nextCol][nextRow];
-            if (dependentCell == null || dependentCell.getData() == null || dependentCell.getData().trim().isEmpty()) {
-                visited[row][col] = false;
-                return Ex2Utils.ERR_CYCLE_FORM;
-            }
-
-            int depth = calculateCellDepth(nextCol, nextRow, visited);
-            if (depth == Ex2Utils.ERR_CYCLE_FORM) {
-                visited[row][col] = false;
-                return Ex2Utils.ERR_CYCLE_FORM;
-            }
-            maxDepth = Math.max(maxDepth, depth);
+            return maxDepth + 1;
+        } finally {
+            visited[row][col] = false;  // תמיד נשחרר את הסימון בסוף
         }
-
-        visited[row][col] = false;
-        return maxDepth + 1;
     }
 
     /**

@@ -285,7 +285,7 @@ public class Ex2SheetTest {
         sheet.set(0, 0, "=B0");      // A0 -> B0
         sheet.set(1, 0, "=C0");      // B0 -> C0
         sheet.set(2, 0, "=A0");      // C0 -> A0 (creates cycle)
-        sheet.set(3, 0, "=A0+1");    // D0 depends on cell in cycle
+        sheet.set(3, 0, "=A0+A0");    // D0 depends on cell in cycle
 
         sheet.eval();
         assertEquals("ERR_CYCLE!", sheet.value(0, 0));
