@@ -11,10 +11,6 @@ public class CellEntry implements Index2D {
      * @param x Column index (0-25 for A-Z)
      * @param y Row index (0-99)
      */
-    public CellEntry(int x, int y) {
-        this.x = x;
-        this.y = y;
-    }
 
     /**
      * Converts cell coordinates to spreadsheet notation

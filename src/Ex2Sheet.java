@@ -263,16 +263,7 @@ public class Ex2Sheet implements Sheet {
             return 0;
         }
 
-        // בדיקת מעגליות - אבל קודם נבדוק אם זו נוסחה שמאפסת את עצמה
-        if (visited[row][col]) {
-            // בדיקה האם זו נוסחה מהצורה A1-A1
-            Pattern selfNegatingPattern = Pattern.compile("([A-Za-z][0-9]+)-\\1");
-            Matcher selfNegatingMatcher = selfNegatingPattern.matcher(content);
-            if (selfNegatingMatcher.matches()) {
-                return 0;  // במקרה של A1-A1, התוצאה תמיד תהיה 0
-            }
-            return Ex2Utils.ERR_CYCLE_FORM;
-        }
+
 
         Pattern pattern = Pattern.compile("[A-Za-z][0-9]+");
         Matcher matcher = pattern.matcher(data);
