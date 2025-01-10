@@ -41,17 +41,6 @@ public class SCell implements Cell {
         return !isNumber() && !isForm();
     } // אני בודק את זה בפונקציה אחרת
 
-    // בודק שהכמות סוגריים סוגרים ופותחים מאוזנת
-    private boolean hasBalancedParentheses(String str) {
-        int balanceCounter = 0;
-        for (char character : str.toCharArray()) {
-            if (character == '(') balanceCounter++;
-            if (character == ')') balanceCounter--;
-            if (balanceCounter < 0) return false; // אם יש יותר סוגרים סוגרים
-        }
-        return balanceCounter == 0; // וידוא שכל הסוגריים מאוזנים
-    }
-
     // עושה את פעולת החיבור כפל חיסור חילוק לפי היסמן פעולה שהגיע
     private Double calculate(Double leftOperand, Double rightOperand, char operation) {
         return switch (operation) {
@@ -175,10 +164,18 @@ public class SCell implements Cell {
         return calculate(leftValue, rightValue, operation);
     }
 
-    /**
-     * Returns a string representation of the cell
-     * @return The cell's name or evaluated value
-     */
+
+    // בודק שהכמות סוגריים סוגרים ופותחים מאוזנת
+    private boolean hasBalancedParentheses(String str) {
+        int balanceCounter = 0;
+        for (char character : str.toCharArray()) {
+            if (character == '(') balanceCounter++;
+            if (character == ')') balanceCounter--;
+            if (balanceCounter < 0) return false; // אם יש יותר סוגרים סוגרים
+        }
+        return balanceCounter == 0; // וידוא שכל הסוגריים מאוזנים
+    }
+
     @Override
     public String toString() {
         if (cellName != null && !cellName.isEmpty()) {
