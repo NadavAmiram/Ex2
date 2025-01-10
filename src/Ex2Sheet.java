@@ -8,6 +8,8 @@ import java.util.regex.Pattern;
  */
 public class Ex2Sheet implements Sheet {
     private Cell[][] table;
+    .גבצגםלב
+    בחב
 
     /**
      * Creates a new spreadsheet with specified dimensions
