@@ -198,7 +198,9 @@ public class SCell implements Cell {
         String rightPart = form.substring(operatorIndex + 1).trim();
 
         if (leftPart.isEmpty()) {
-            if eturn -Double.parseDouble(rightPart);
+            if (operator == '-') {
+                try {
+                    return -Double.parseDouble(rightPart);
                 } catch (NumberFormatException e) {
                     Double rightValue = computeForm(rightPart);
                     return rightValue != null ? -rightValue : null;
