@@ -1,185 +1,270 @@
 import java.io.*;
-import java.util.regex.Pattern;
+import java.util.*;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Ex2Sheet implements Sheet {
     private Cell[][] table;
+    private static final Pattern CELL_REFERENCE_PATTERN = Pattern.compile("[A-Za-z][0-9]+");
+    private static final Pattern SELF_NEGATING_PATTERN = Pattern.compile("([A-Za-z][0-9]+)-\\1");
+    private static final Pattern SCIENTIFIC_NOTATION_PATTERN = Pattern.compile("^-?\\d*\\.?\\d+[eE][-+]?\\d+$");
 
+    // Constructors
     public Ex2Sheet(int x, int y) {
-        table = new SCell[x][y];
-        initializeTable(x, y); // אתחול הטבלה בערכים ריקים כברירת מחדל
+        initializeSheet(x, y);
         eval();
     }
 
     public Ex2Sheet() {
-        this(Ex2Utils.WIDTH, Ex2Utils.HEIGHT); // בנייה של טבלה בגודל ברירת המחדל
+        this(Ex2Utils.WIDTH, Ex2Utils.HEIGHT);
     }
 
-    private void initializeTable(int cols, int rows) {
+
+    // Private initialization methods
+    private void initializeSheet(int cols, int rows) {
+        table = new SCell[cols][rows];
+        initializeEmptyCells(cols, rows);
+    }
+
+    private void initializeEmptyCells(int cols, int rows) {
         for (int col = 0; col < cols; col++) {
             for (int row = 0; row < rows; row++) {
-                table[col][row] = new SCell(Ex2Utils.EMPTY_CELL, this, generateCellName(col, row)); // אתחול תא ריק עם שם התואם למיקומו
+                createEmptyCell(col, row);
             }
         }
     }
 
-    private String generateCellName(int colIndex, int rowIndex) {
-        return String.valueOf((char)('A' + colIndex)) + rowIndex; // חישוב שם התא לפי מיקום עמודה ושורה
+    private void createEmptyCell(int col, int row) {
+        table[col][row] = new SCell(Ex2Utils.EMPTY_CELL, this, generateCellName(col, row));
     }
 
-    @Override
-    public String value(int x, int y) {
-        if (!isIn(x, y)) {
-            return Ex2Utils.EMPTY_CELL; // החזרת ערך ריק אם התא מחוץ לטווח
-        }
-
-        Cell cell = table[x][y];
-        if (cell instanceof SCell sCell) {
-            String evalValue = sCell.getEvaluatedValue(); // בדיקה אם התא כבר קיבל ערך
-            if (evalValue != null) {
-                return evalValue;
-            }
-            evaluateCell(x, y); // אם התא לא קיבל ערך עדיין
-            return sCell.getEvaluatedValue();
-        }
-        return "";
+    private String generateCellName(int col, int row) {
+        return String.valueOf((char)('A' + col)) + row;
     }
 
+    // Interface implementation methods
     @Override
-    public Cell get(int x, int y) {
-        return isIn(x, y) ? table[x][y] : null; // החזרת תא עבור מיקום חוקי
-    }
-
-    @Override
-    public Cell get(String cords) {
-        try {
-            int[] coordinates = returnXY(cords); // ערכי איקס וואי עבור השם של התא
-            return get(coordinates[0], coordinates[1]);
-        } catch (Exception e) {
-            return null;
-        }
+    public boolean isIn(int x, int y) {
+        return x >= 0 && y >= 0 && x < width() && y < height();
     }
 
     @Override
     public int width() {
-        return table.length; // רוחב הטבלה
+        return table.length;
     }
 
     @Override
     public int height() {
-        return table[0].length; // גובה הטבלה
+        return table[0].length;
     }
 
     @Override
     public void set(int col, int row, String val) {
         if (!isIn(col, row)) return;
+        String value = normalizeValue(val);
+        table[col][row] = new SCell(value, this, generateCellName(col, row));
+    }
 
-        String value = (val == null || val.trim().isEmpty()) ? Ex2Utils.EMPTY_CELL : val;
-        table[col][row] = new SCell(value, this, generateCellName(col, row)); // הגדרת תא
+    private String normalizeValue(String val) {
+        return (val == null || val.trim().isEmpty()) ? Ex2Utils.EMPTY_CELL : val;
+    }
+
+    @Override
+    public Cell get(int x, int y) {
+        return isIn(x, y) ? table[x][y] : null;
+    }
+
+    @Override
+    public Cell get(String entry) {
+        try {
+            int[] coords = parseCellReference(entry);
+            return get(coords[0], coords[1]);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private int[] parseCellReference(String entry) {
+        if (entry == null || entry.trim().isEmpty()) {
+            throw new IllegalArgumentException("Invalid cell reference: empty input");
+        }
+
+        entry = entry.trim().toUpperCase();
+        if (!entry.matches("[A-Z][0-9]+")) {
+            throw new IllegalArgumentException("Invalid cell reference format: " + entry);
+        }
+
+        int col = entry.charAt(0) - 'A';
+        int row = Integer.parseInt(entry.substring(1));
+
+        if (!isIn(col, row)) {
+            throw new IllegalArgumentException("Cell reference out of bounds: " + entry);
+        }
+
+        return new int[]{col, row};
+    }
+
+    @Override
+    public String value(int x, int y) {
+        if (!isIn(x, y)) {
+            return Ex2Utils.EMPTY_CELL;
+        }
+
+        Cell cell = table[x][y];
+        if (!(cell instanceof SCell sCell)) {
+            return Ex2Utils.EMPTY_CELL;
+        }
+
+        String evalValue = sCell.getEvaluatedValue();
+        if (evalValue != null) {
+            return evalValue;
+        }
+
+        evaluateCell(x, y);
+        return sCell.getEvaluatedValue();
     }
 
     @Override
     public void eval() {
-        int[][] depths = depth(); // חישוב עומק התלות של כל תא
+        resetEvaluatedValues();
+        int[][] depths = depth();
+        evaluateCellsByDepth(depths);
+    }
 
-        // איפוס הערכים שהוערכו כבר
+    private void resetEvaluatedValues() {
         for (int col = 0; col < width(); col++) {
             for (int row = 0; row < height(); row++) {
-                if (table[col][row] instanceof SCell) {
-                    ((SCell) table[col][row]).setEvaluatedValue(null);
-                }
-            }
-        }
-
-        // הערכת תאים לפי העומק
-        for (int depth = 0; depth <= findMaxDepth(depths); depth++) {
-            for (int col = 0; col < width(); col++) {
-                for (int row = 0; row < height(); row++) {
-                    if (depths[col][row] == depth) {
-                        evaluateCell(col, row);
-                    }
+                if (table[col][row] instanceof SCell sCell) {
+                    sCell.setEvaluatedValue(null);
                 }
             }
         }
     }
 
+    private void evaluateCellsByDepth(int[][] depths) {
+        int maxDepth = findMaxDepth(depths);
+        for (int depth = 0; depth <= maxDepth; depth++) {
+            evaluateCellsAtDepth(depths, depth);
+        }
+    }
+
     private int findMaxDepth(int[][] depths) {
-        int maxDepth = 0; // משתנה עבור הערך המקסימלי של התא
-        for (int[] rowDepths : depths) {
-            for (int depth : rowDepths) {
-                maxDepth = Math.max(maxDepth, depth); // מציאת עומק מקסימלי של התלות
+        int maxDepth = 0;
+        for (int[] row : depths) {
+            for (int depth : row) {
+                if (depth > maxDepth) {
+                    maxDepth = depth;
+                }
             }
         }
         return maxDepth;
     }
 
+    private void evaluateCellsAtDepth(int[][] depths, int targetDepth) {
+        for (int col = 0; col < width(); col++) {
+            for (int row = 0; row < height(); row++) {
+                if (depths[col][row] == targetDepth) {
+                    evaluateCell(col, row);
+                }
+            }
+        }
+    }
+
     private void evaluateCell(int col, int row) {
         if (!isIn(col, row)) return;
 
-        Cell cell = table[col][row];
-        if (!(cell instanceof SCell sCell)) return;
-
+        SCell sCell = (SCell) table[col][row];
         String data = sCell.getData();
 
-        // תא ריק
-        if (data == null || data.trim().isEmpty()) {
-            sCell.setEvaluatedValue("");
+        if (isEmptyData(data)) {
+            handleEmptyCell(sCell);
             return;
         }
 
-        // נוסחה
-        if (data.startsWith("=")) {
-            // בדיקת תלות מעגלית
-            int depth = calculateDepth(col, row, new boolean[width()][height()]);
-            if (depth == Ex2Utils.ERR_CYCLE_FORM) {
-                sCell.setType(Ex2Utils.ERR_CYCLE_FORM);  // עדכון הטיפוס
-                sCell.setEvaluatedValue(Ex2Utils.ERR_CYCLE);
-                return;
-            }
-
-            Double result = sCell.computeForm(data); // חישוב הנוסחה
-            if (result != null) {
-                sCell.setType(Ex2Utils.FORM);  // נוסחה תקינה
-                sCell.setEvaluatedValue(String.format("%.1f", result));
-            } else {
-                sCell.setType(Ex2Utils.ERR_FORM_FORMAT);  // שגיאת פורמט
-                sCell.setEvaluatedValue(Ex2Utils.ERR_FORM);
-            }
+        if (isFormula(data)) {
+            handleFormula(col, row, sCell, data);
             return;
         }
 
-        // מספר
-        if (sCell.isNumber()) {
-            try {
-                double val = Double.parseDouble(data);
-                sCell.setType(Ex2Utils.NUMBER);
-                sCell.setEvaluatedValue(String.format("%.1f", val));
-            } catch (NumberFormatException e) {
-                sCell.setType(Ex2Utils.TEXT);
-                sCell.setEvaluatedValue(data);
-            }
-            return;
-        }
-
-        // טקסט
-        sCell.setType(Ex2Utils.TEXT);
-        sCell.setEvaluatedValue(data);
+        handleNonFormulaCell(sCell, data);
     }
 
-    @Override
-    public boolean isIn(int x, int y) {
-        return x >= 0 && y >= 0 && x < width() && y < height(); // בדיקה אם הקואורדינטות תקינות
+    private boolean isEmptyData(String data) {
+        return data == null || data.trim().isEmpty();
+    }
+
+    private boolean isFormula(String data) {
+        return data.startsWith("=");
+    }
+
+    private void handleEmptyCell(SCell cell) {
+        cell.setEvaluatedValue("");
+    }
+
+    private void handleFormula(int col, int row, SCell cell, String data) {
+        int depthResult = calculateDepth(col, row, new boolean[width()][height()]);
+
+        if (depthResult == Ex2Utils.ERR_CYCLE_FORM) {
+            markCellAsCyclic(cell);
+            return;
+        }
+
+        evaluateFormula(cell, data);
+    }
+
+    private void markCellAsCyclic(SCell cell) {
+        cell.setType(Ex2Utils.ERR_CYCLE_FORM);
+        cell.setEvaluatedValue(Ex2Utils.ERR_CYCLE);
+    }
+
+    private void evaluateFormula(SCell cell, String formula) {
+        Double result = cell.computeForm(formula);
+        if (result != null) {
+            cell.setType(Ex2Utils.FORM);
+            cell.setEvaluatedValue(String.format("%.1f", result));
+        } else {
+            cell.setType(Ex2Utils.ERR_FORM_FORMAT);
+            cell.setEvaluatedValue(Ex2Utils.ERR_FORM);
+        }
+    }
+
+    private void handleNonFormulaCell(SCell cell, String data) {
+        if (isNumeric(data)) {
+            handleNumericCell(cell, data);
+        } else {
+            handleTextCell(cell, data);
+        }
+    }
+
+    private boolean isNumeric(String str) {
+        try {
+            Double.parseDouble(str);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private void handleNumericCell(SCell cell, String data) {
+        double value = Double.parseDouble(data);
+        cell.setType(Ex2Utils.NUMBER);
+        cell.setEvaluatedValue(String.format("%.1f", value));
+    }
+
+    private void handleTextCell(SCell cell, String data) {
+        cell.setType(Ex2Utils.TEXT);
+        cell.setEvaluatedValue(data);
     }
 
     @Override
     public int[][] depth() {
         int[][] depths = new int[width()][height()];
-        boolean[][] visitedCells = new boolean[width()][height()];
+        boolean[][] visited = new boolean[width()][height()];
 
         for (int col = 0; col < width(); col++) {
             for (int row = 0; row < height(); row++) {
-                if (!visitedCells[col][row]) {
-                    depths[col][row] = calculateDepth(col, row, new boolean[width()][height()]); // חישוב עומק התא
+                if (!visited[col][row]) {
+                    depths[col][row] = calculateDepth(col, row, new boolean[width()][height()]);
                 }
             }
         }
@@ -187,160 +272,231 @@ public class Ex2Sheet implements Sheet {
     }
 
     private int calculateDepth(int col, int row, boolean[][] visited) {
-        if (!isIn(col, row)) {
-            return Ex2Utils.ERR_CYCLE_FORM; // מעגלי
-        }
-
-        Cell cell = table[col][row];
-        if (cell == null) {
-            return Ex2Utils.ERR_CYCLE_FORM; // מעגלי
-        }
-
-        String data = cell.getData();
-        if (data == null || data.trim().isEmpty()) {
-            return 0; // התא ריק או מאותחל לNull
-        }
-
-        if (!data.startsWith("=")) {
-            return 0;
-        }
-
-        // בדיקה אם זה מספר בפורמט מדעי
-        String content = data.substring(1).trim();
-        if (content.matches("^-?\\d*\\.?\\d+[eE][-+]?\\d+$")) {
-            return 0;
-        }
-
-        // בדיקת מעגליות - אבל קודם נבדוק אם זו נוסחה שמאפסת את עצמה
-        if (visited[col][row]) {
-            // בדיקה האם זו נוסחה מהצורה A1-A1
-            Pattern selfNegatingPattern = Pattern.compile("([A-Za-z][0-9]+)-\\1");
-            Matcher selfNegatingMatcher = selfNegatingPattern.matcher(content);
-            if (selfNegatingMatcher.matches()) {
-                return 0;  // במקרה של A1-A1, התוצאה תמיד תהיה 0
-            }
+        if (!isValidCell(col, row)) {
             return Ex2Utils.ERR_CYCLE_FORM;
         }
 
-        Pattern pattern = Pattern.compile("[A-Za-z][0-9]+");
-        Matcher matcher = pattern.matcher(data);
-        if (!matcher.find()) {
-            return 0;  // אין תלויות בתאים אחרים
+        String data = table[col][row].getData();
+        if (isEmptyData(data) || !isFormula(data)) {
+            return 0;
         }
 
-        visited[col][row] = true;  // מסמן את התא כמבוקר
-        matcher.reset();
+        String content = data.substring(1).trim();
+        if (isScientificNotation(content)) {
+            return 0;
+        }
+
+        if (visited[col][row]) {
+            return isSelfNegating(content) ? 0 : Ex2Utils.ERR_CYCLE_FORM;
+        }
+
+        return calculateDependencyDepth(col, row, visited, content);
+    }
+
+    private boolean isValidCell(int col, int row) {
+        return isIn(col, row) && table[col][row] != null;
+    }
+
+    private boolean isScientificNotation(String content) {
+        return SCIENTIFIC_NOTATION_PATTERN.matcher(content).matches();
+    }
+
+    private boolean isSelfNegating(String content) {
+        return SELF_NEGATING_PATTERN.matcher(content).matches();
+    }
+
+    private int calculateDependencyDepth(int col, int row, boolean[][] visited, String content) {
+        Matcher matcher = CELL_REFERENCE_PATTERN.matcher(content);
+        if (!matcher.find()) {
+            return 0;
+        }
+
+        visited[col][row] = true;
         int maxDepth = 0;
 
         try {
+            matcher.reset();
             while (matcher.find()) {
-                String ref = matcher.group();
-                int depCol = Character.toUpperCase(ref.charAt(0)) - 'A';
-                int depRow = Integer.parseInt(ref.substring(1));
-
-                // בדיקת תקינות התא המאוזכר
-                if (!isIn(depCol, depRow)) {
-                    return Ex2Utils.ERR_CYCLE_FORM; // מעגלי
-                }
-
-                Cell dependentCell = table[depCol][depRow];
-                if (dependentCell == null) {
-                    return Ex2Utils.ERR_CYCLE_FORM; // מעגלי
-                }
-
-                // אם התא ריק, נחשיב אותו כ-0
-                String dependentData = dependentCell.getData();
-                if (dependentData == null || dependentData.trim().isEmpty()) {
-                    continue;
-                }
-
-                int depth = calculateDepth(depCol, depRow, visited);
+                int depth = processReference(matcher.group(), visited);
                 if (depth == Ex2Utils.ERR_CYCLE_FORM) {
-                    return Ex2Utils.ERR_CYCLE_FORM; // מעגלי
+                    return Ex2Utils.ERR_CYCLE_FORM;
                 }
                 maxDepth = Math.max(maxDepth, depth);
             }
-
-            return maxDepth + 1; // מגדיל את העומק ב-1
+            return maxDepth + 1;
         } finally {
-            visited[col][row] = false;  // תמיד נשחרר את הסימון בסוף
+            visited[col][row] = false;
+        }
+    }
+
+    private int processReference(String reference, boolean[][] visited) {
+        try {
+            int[] coords = parseCellReference(reference);
+            if (!isValidCell(coords[0], coords[1])) {
+                return Ex2Utils.ERR_CYCLE_FORM;
+            }
+
+            String dependentData = table[coords[0]][coords[1]].getData();
+            if (isEmptyData(dependentData)) {
+                return 0;
+            }
+
+            return calculateDepth(coords[0], coords[1], visited);
+        } catch (Exception e) {
+            return Ex2Utils.ERR_CYCLE_FORM;
         }
     }
 
     @Override
     public String eval(int x, int y) {
-        if (!isIn(x, y)) {
+        if (!isValidPosition(x, y)) {
             return null;
         }
 
         eval();
+        return getEvaluatedCellValue(x, y);
+    }
 
+    private boolean isValidPosition(int x, int y) {
+        return isIn(x, y);
+    }
+
+    private String getEvaluatedCellValue(int x, int y) {
         Cell cell = get(x, y);
-        if (cell instanceof SCell) {
-            String evalValue = ((SCell) cell).getEvaluatedValue();
-            return (evalValue != null && !evalValue.isEmpty()) ? evalValue : cell.getData();
+        if (!(cell instanceof SCell sCell)) {
+            return null;
         }
 
-        return null;
+        String evaluatedValue = sCell.getEvaluatedValue();
+        return (evaluatedValue != null && !evaluatedValue.isEmpty()) ?
+                evaluatedValue : cell.getData();
     }
 
     @Override
     public void save(String fileName) throws IOException {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(fileName))) {
-            writer.write(width() + "," + height() + "\n"); // כתיבת ממדי הטבלה
+            writeSheetDimensions(writer);
+            writeSheetContent(writer);
+        }
+    }
 
-            for (int col = 0; col < width(); col++) {
-                for (int row = 0; row < height(); row++) {
-                    Cell cell = table[col][row];
-                    String data = (cell.getData() == null || cell.getData().trim().isEmpty()) ? "EMPTY" : cell.getData();
-                    writer.write(data.replace(",", "\\,").replace("\n", "\\n"));
+    private void writeSheetDimensions(BufferedWriter writer) throws IOException {
+        writer.write(width() + "," + height() + "\n");
+    }
 
-                    if (row < height() - 1) {
-                        writer.write(",");
-                    }
-                }
-                writer.write("\n");
+    private void writeSheetContent(BufferedWriter writer) throws IOException {
+        for (int col = 0; col < width(); col++) {
+            writeRowContent(writer, col);
+        }
+    }
+
+    private void writeRowContent(BufferedWriter writer, int col) throws IOException {
+        for (int row = 0; row < height(); row++) {
+            writeCellContent(writer, col, row);
+            if (row < height() - 1) {
+                writer.write(",");
             }
         }
+        writer.write("\n");
+    }
+
+    private void writeCellContent(BufferedWriter writer, int col, int row) throws IOException {
+        Cell cell = table[col][row];
+        String data = formatCellData(cell);
+        writer.write(data);
+    }
+
+    private String formatCellData(Cell cell) {
+        String data = cell.getData();
+        if (isEmptyOrNull(data)) {
+            return "EMPTY";
+        }
+        return data.replace(",", "\\,").replace("\n", "\\n");
+    }
+
+    private boolean isEmptyOrNull(String data) {
+        return data == null || data.trim().isEmpty();
     }
 
     @Override
     public void load(String fileName) throws IOException {
         try (BufferedReader reader = new BufferedReader(new FileReader(fileName))) {
-            String[] dimensions = reader.readLine().split(",");
-            int width = Integer.parseInt(dimensions[0]);
-            int height = Integer.parseInt(dimensions[1]);
-
-            table = new SCell[width][height]; // יצירת טבלה בגודל הנדרש
-
-            for (int col = 0; col < width; col++) {
-                String[] rowData = reader.readLine().split("(?<!\\\\),");
-                for (int row = 0; row < height; row++) {
-                    String cellData = rowData[row].replace("\\,", ",").replace("\\n", "\n");
-                    table[col][row] = new SCell(cellData.equals("EMPTY") ? "" : cellData, this, generateCellName(col, row));
-                }
-            }
+            int[] dimensions = readDimensions(reader);
+            createNewTable(dimensions[0], dimensions[1]);
+            loadTableContent(reader, dimensions[0], dimensions[1]);
             eval();
         }
     }
 
+    private int[] readDimensions(BufferedReader reader) throws IOException {
+        String[] dimensions = reader.readLine().split(",");
+        return new int[]{
+                Integer.parseInt(dimensions[0]),
+                Integer.parseInt(dimensions[1])
+        };
+    }
+
+    private void createNewTable(int width, int height) {
+        table = new SCell[width][height];
+    }
+
+    private void loadTableContent(BufferedReader reader, int width, int height) throws IOException {
+        for (int col = 0; col < width; col++) {
+            loadRowContent(reader, col, height);
+        }
+    }
+
+    private void loadRowContent(BufferedReader reader, int col, int height) throws IOException {
+        String[] rowData = reader.readLine().split("(?<!\\\\),");
+        for (int row = 0; row < height; row++) {
+            createCell(col, row, rowData[row]);
+        }
+    }
+
+    private void createCell(int col, int row, String data) {
+        String cellData = processCellData(data);
+        table[col][row] = new SCell(cellData, this, generateCellName(col, row));
+    }
+
+    private String processCellData(String data) {
+        String processed = data.replace("\\,", ",").replace("\\n", "\n");
+        return processed.equals("EMPTY") ? "" : processed;
+    }
+
+
+
     private int[] returnXY(String cords) {
-        if (cords == null || cords.trim().isEmpty()) {
+        validateCoordinates(cords);
+        return parseCoordinates(cords.trim());
+    }
+
+    private void validateCoordinates(String cords) {
+        if (isEmptyOrNull(cords)) {
             throw new IllegalArgumentException("Invalid coordinates: empty input");
         }
 
-        cords = cords.trim(); // הסרת רווחים מיותרים מהקלט
-        if (!cords.matches("[A-Za-z][0-9]+")) { // בדיקה אם הקלט תואם פורמט קואורדינטות
+        if (!isValidCoordinateFormat(cords.trim())) {
             throw new IllegalArgumentException("Invalid coordinates format: " + cords);
         }
+    }
 
-        int colIndex = Character.toUpperCase(cords.charAt(0)) - 'A';
+    private boolean isValidCoordinateFormat(String cords) {
+        return cords.matches("[A-Za-z][0-9]+");
+    }
+
+    private int[] parseCoordinates(String cords) {
+        int colIndex = calculateColumnIndex(cords.charAt(0));
         int rowIndex = Integer.parseInt(cords.substring(1));
 
         if (!isIn(colIndex, rowIndex)) {
             throw new IllegalArgumentException("Invalid coordinates: " + cords);
         }
 
-        return new int[] { colIndex, rowIndex };
+        return new int[]{colIndex, rowIndex};
+    }
+
+    private int calculateColumnIndex(char colChar) {
+        return Character.toUpperCase(colChar) - 'A';
     }
 }
+
